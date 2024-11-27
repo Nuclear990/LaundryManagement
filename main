@@ -1,0 +1,528 @@
+package laundryManagement;
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.ActionListener;
+import java.sql.*;
+import java.util.Arrays;
+import java.util.Random;
+
+public class Laundry1 {
+    private static String username;
+    
+    private static Connection conn=null;
+
+    public static void main(String[] args) {
+        JFrame frame = new JFrame("Laundry Management System - Login");
+        frame.setSize(600, 360);
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        ImageIcon image=new ImageIcon("wmf.jpeg");    
+        frame.setIconImage(image.getImage());
+        
+        // Components for Login
+        JLabel userLabel = new JLabel("Username:");
+        JTextField userText = new JTextField(20);
+        JLabel passLabel = new JLabel("Password:");
+        JPasswordField passText = new JPasswordField(20);
+        JButton loginButton = new JButton("Login");
+        JButton registerButton = new JButton("Register New User");
+        userLabel.setFont(new Font("arial", Font.BOLD, 23));
+        passLabel.setFont(new Font("arial", Font.BOLD, 23));
+        loginButton.setFont(new Font("arial", Font.PLAIN, 20));
+        registerButton.setFont(new Font("arial", Font.PLAIN, 20));
+        loginButton.setForeground(new Color(255,255,255));
+        loginButton.setBackground(new Color(20,26,70));
+        loginButton.setOpaque(true);
+        registerButton.setForeground(new Color(255,255,255));
+        registerButton.setBackground(new Color(20,26,70));
+        registerButton.setOpaque(true);
+        // Layout for Login Window
+        JPanel panel = new JPanel(new GridLayout(3, 2));
+        panel.add(userLabel);
+        panel.add(userText);
+        panel.add(passLabel);
+        panel.add(passText);
+        panel.add(loginButton);
+        panel.add(registerButton);
+        
+        frame.add(panel);
+        frame.setVisible(true);
+        // Action listener for Login button
+        loginButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                username = userText.getText();
+                String password = String.valueOf(passText.getPassword());
+                authenticateUser(username, password);
+            }
+        });
+        
+        // Action listener for Register button
+        registerButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                registerNewUser();
+            }
+        });
+    }
+
+    // Authenticate user
+    private static boolean authenticateUser(String username, String password) {
+        try {conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/laundry_db", "root", "root");
+             PreparedStatement pst = conn.prepareStatement("SELECT * FROM USERS WHERE username = ? AND password = ?"); 
+            pst.setString(1, username);
+            pst.setString(2, password);
+            ResultSet rs = pst.executeQuery();
+
+            if (rs.next()) {
+                String role = rs.getString("role");
+                int empid= rs.getInt("id");
+                JOptionPane.showMessageDialog(null, "Login successful! Role: " + role);
+                // Redirect user based on role
+                if (role.equalsIgnoreCase("Admin")) {
+                    openAdminDashboard();
+                    
+                } else if (role.equalsIgnoreCase("Employee")) {
+                    openEmployeeDashboard(empid);
+                } else {
+                    openCustomerDashboard();
+                }
+                return true;
+            } else {
+                JOptionPane.showMessageDialog(null, "Invalid credentials!");
+                return false;
+            }
+        } catch (SQLException ex) {
+            ex.printStackTrace();
+            return false;
+        }
+    }
+
+    // Open the registration window
+    private static void registerNewUser() {
+        JFrame regFrame = new JFrame("Register New Customer");
+        regFrame.setSize(400, 500);
+
+        // Components for Registration
+        JTextField userText = new JTextField(15);
+        JPasswordField passText = new JPasswordField(15);
+        JTextField roleText = new JTextField(15);
+        JTextField mobileText = new JTextField(15);
+        JTextField addText = new JTextField(15);
+        JButton registerBtn = new JButton("Register");
+        registerBtn.setForeground(new Color(255,255,255));
+        registerBtn.setBackground(new Color(20,26,70));
+        registerBtn.setOpaque(true);
+        // Layout for Registration
+        JPanel regPanel = new JPanel(new GridLayout(6, 2));
+        regPanel.add(new JLabel("Username:"));
+        regPanel.add(userText);
+        regPanel.add(new JLabel("Password:"));
+        regPanel.add(passText);
+        regPanel.add(new JLabel("Name:"));
+        regPanel.add(roleText);
+        regPanel.add(new JLabel("Mobile:"));
+        regPanel.add(mobileText);
+        regPanel.add(new JLabel("Address:"));
+        regPanel.add(addText);
+        regPanel.add(registerBtn);
+
+        regFrame.add(regPanel);
+        regFrame.setVisible(true);
+
+        // Register button action
+        registerBtn.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                username = userText.getText();
+                String password = String.valueOf(passText.getPassword());
+                String name = roleText.getText();
+                long mobile=Long.parseLong(mobileText.getText().trim());
+                String add= addText.getText();
+                addUserToDatabase(username, password, name, mobile, add);
+                regFrame.dispose();
+            }
+        });
+    }
+
+    // Insert new user into the database
+    private static void addUserToDatabase(String user, String password, String name, long mobile, String add) {
+        try {
+        	 conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/laundry_db", "root", "root");
+             PreparedStatement pst = conn.prepareStatement("INSERT INTO USERS (username, password, role) VALUES (?, ?, 'Customer')");
+             PreparedStatement pstm = conn.prepareStatement("INSERT INTO CUSTOMER (C_name, mobile) VALUES (?, ?)", Statement.RETURN_GENERATED_KEYS);
+             PreparedStatement p = conn.prepareStatement("INSERT INTO CUSTOMER_ADDRESS (C_id, C_address) VALUES (?, ?)");
+            pst.setString(1, user);
+            pst.setString(2, password);
+            pst.executeUpdate();
+            pstm.setString(1, name);
+            pstm.setLong(2, mobile);
+            pstm.executeUpdate();
+            ResultSet generatedKeys = pstm.getGeneratedKeys();
+            int C_Id = 0;
+            if (generatedKeys.next()) {
+                C_Id = generatedKeys.getInt(1);
+            }
+            p.setInt(1, C_Id);
+            p.setString(2,add);
+            p.executeUpdate();
+            JOptionPane.showMessageDialog(null, "Customer registered successfully!");
+        } catch (SQLException ex) {
+            ex.printStackTrace();
+    }}
+
+    // Placeholder methods to open different dashboards based on role
+    private static void openAdminDashboard() {
+    	try { conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/laundry_db", "root", "root");
+    	// Show menu options to the admin
+        String menu = "Select an option:\n"
+                    + "1. View Customer and Staff Data\n"
+                    + "2. Add, Delete, or Update Staff\n"
+                    + "3. Exit";
+
+        while (true) {
+            String choice = JOptionPane.showInputDialog(null, menu);
+
+            if (choice == null || choice.equals("3")) {
+                // Exit the menu if the user selects 4 or presses Cancel
+                break;
+            }
+
+            switch (choice) {
+                case "1":
+                    // View customer and staff data
+                    viewCustomerStaffData();
+                    break;
+                case "2":
+                    // Add, delete, or update staff
+                    manageStaff();
+                    break;
+                default:
+                    JOptionPane.showMessageDialog(null, "Invalid option. Please try again.");
+                    break;
+            }
+        }}catch(SQLException m) {
+        	 m.printStackTrace();
+        }
+    }
+
+  
+    // Function to view customer and staff data
+    public static void viewCustomerStaffData() {
+        try {
+            // Retrieve and display customer data
+            String customerQuery = "SELECT * FROM CUSTOMER";
+            Statement customerStmt = conn.createStatement();
+            ResultSet customerRs = customerStmt.executeQuery(customerQuery);
+            StringBuilder customerData = new StringBuilder("Customer Data:\n");
+            while (customerRs.next()) {
+                customerData.append("ID: ").append(customerRs.getInt("C_id"))
+                            .append(", Name: ").append(customerRs.getString("C_name"))
+                            .append(", Mobile: ").append(customerRs.getLong("Mobile"))
+                            .append("\n");
+            }
+
+            // Retrieve and display staff data
+            String staffQuery = "SELECT * FROM STAFF";
+            Statement staffStmt = conn.createStatement();
+            ResultSet staffRs = staffStmt.executeQuery(staffQuery);
+            StringBuilder staffData = new StringBuilder("Staff Data:\n");
+            while (staffRs.next()) {
+                staffData.append("ID: ").append(staffRs.getInt("S_id"))
+                         .append(", Name: ").append(staffRs.getString("S_name"))
+                         .append(", Salary: ").append(staffRs.getInt("Salary"))
+                         .append("\n");
+            }
+
+            // Display the results
+            JOptionPane.showMessageDialog(null, customerData.toString() + "\n" + staffData.toString());
+        } catch (SQLException e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(null, "Error fetching data: " + e.getMessage());
+        }
+    }
+
+    // Function to manage staff (Add, Update, Delete)
+    public static void manageStaff() {
+        // This could open another menu for managing staff, e.g., add, update, delete staff records
+        String menu = "Manage Staff:\n"
+                    + "1. Add Staff\n"
+                    + "2. Update Staff\n"
+                    + "3. Delete Staff\n"
+                    + "4. Back to Dashboard";
+        
+        String choice = JOptionPane.showInputDialog(null, menu);
+        
+        switch (choice) {
+            case "1":
+                // Add staff (example code to add a new staff member)
+                String staffName = JOptionPane.showInputDialog("Enter staff name:");
+                String staffSalary = JOptionPane.showInputDialog("Enter staff salary:");
+                try {
+                    String insertQuery = "INSERT INTO STAFF (S_name, Salary) VALUES (?, ?)";
+                    PreparedStatement stmt = conn.prepareStatement(insertQuery);
+                    stmt.setString(1, staffName);
+                    stmt.setInt(2, Integer.parseInt(staffSalary));
+                    stmt.executeUpdate();
+                    JOptionPane.showMessageDialog(null, "Staff added successfully!");
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                    JOptionPane.showMessageDialog(null, "Error adding staff: " + e.getMessage());
+                }
+                break;
+            case "2":
+                // Update staff (example code to update staff salary)
+                String updateId = JOptionPane.showInputDialog("Enter staff ID to update:");
+                String newSalary = JOptionPane.showInputDialog("Enter new salary:");
+                try {
+                    String updateQuery = "UPDATE STAFF SET Salary = ? WHERE S_id = ?";
+                    PreparedStatement stmt = conn.prepareStatement(updateQuery);
+                    stmt.setInt(1, Integer.parseInt(newSalary));
+                    stmt.setInt(2, Integer.parseInt(updateId));
+                    stmt.executeUpdate();
+                    JOptionPane.showMessageDialog(null, "Staff updated successfully!");
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                    JOptionPane.showMessageDialog(null, "Error updating staff: " + e.getMessage());
+                }
+                break;
+            case "3":
+                // Delete staff (example code to delete staff)
+                String deleteId = JOptionPane.showInputDialog("Enter staff ID to delete:");
+                try {
+                    String deleteQuery = "DELETE FROM STAFF WHERE S_id = ?";
+                    PreparedStatement stmt = conn.prepareStatement(deleteQuery);
+                    stmt.setInt(1, Integer.parseInt(deleteId));
+                    stmt.executeUpdate();
+                    JOptionPane.showMessageDialog(null, "Staff deleted successfully!");
+                } catch (SQLException e) {
+                    e.printStackTrace();
+                    JOptionPane.showMessageDialog(null, "Error deleting staff: " + e.getMessage());
+                }
+                break;
+            case "4":
+                // Back to dashboard
+                return;
+            default:
+                JOptionPane.showMessageDialog(null, "Invalid option. Please try again.");
+        }
+        
+    } 
+
+
+
+    private static void openCustomerDashboard() {
+    	JFrame frame = new JFrame("Customer Dashboard");
+        frame.setSize(500, 400);
+        frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+        JPanel panel = new JPanel();
+        frame.add(panel);
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+
+        JLabel clothLabel = new JLabel("Enter number of clothes:");
+        JTextField clothField = new JTextField();
+        panel.add(clothLabel);
+        panel.add(clothField);
+
+        JLabel serviceLabel = new JLabel("Select max 3 1) wash&fold 2)iron 3)dryclean 4)quickwash 5)mend (Enter comma separated id)");
+        JTextField serviceField = new JTextField();
+        panel.add(serviceLabel);
+        panel.add(serviceField);
+
+        JButton placeOrderButton = new JButton("Place Order");
+        panel.add(placeOrderButton);
+
+        JLabel billLabel = new JLabel("Total Bill: ");
+        panel.add(billLabel);
+
+        placeOrderButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                try (Connection conn = DriverManager.getConnection("jdbc:mysql://localhost:3306/laundry_db", "root", "root");
+                     PreparedStatement customerStmt = conn.prepareStatement("SELECT id FROM USERS WHERE username = ?");
+                     PreparedStatement priceStmt = conn.prepareStatement("SELECT SUM(Price) AS total_price FROM SERVICES WHERE Service_id IN (?, ?, ?)");
+                     PreparedStatement insertOrderStmt = conn.prepareStatement("INSERT INTO ORDERS (C_id, Status, No_of_cloth, Date_of_placing) VALUES (?, 'processing', ?, CURDATE())", Statement.RETURN_GENERATED_KEYS);
+                     PreparedStatement insertServiceStmt = conn.prepareStatement("INSERT INTO SERVICES_AVAILED (Order_id, Service_id) VALUES (?, ?)");
+                     PreparedStatement insertPaymentStmt = conn.prepareStatement("INSERT INTO PAYMENT (Order_id, Trxn_id, Amount, Payment_date) VALUES (?, ?, ?, CURDATE())")) {
+
+                    int noOfClothes = Integer.parseInt(clothField.getText());
+                    String[] serviceIds = serviceField.getText().split(",");
+                    int[] serviceIdInts = Arrays.stream(serviceIds).mapToInt(Integer::parseInt).toArray();
+
+                    if (serviceIdInts.length < 1 || serviceIdInts.length > 3) {
+                        JOptionPane.showMessageDialog(null, "Please select between 1 to 3 services.");
+                        return;
+                    }
+
+                    // Retrieve C_id for the current user
+                    customerStmt.setString(1, username);
+                    ResultSet customerRs = customerStmt.executeQuery();
+                    int customerId = 0;
+                    if (customerRs.next()) {
+                        customerId = customerRs.getInt("id");
+                    } else {
+                        JOptionPane.showMessageDialog(null, "Customer ID not found.");
+                        return;
+                    }
+
+                    // Calculate the bill amount
+                    for (int i = 0; i < serviceIdInts.length; i++) {
+                        priceStmt.setInt(i + 1, serviceIdInts[i]);
+                    }
+                    for (int i = serviceIdInts.length; i < 3; i++) {
+                        priceStmt.setNull(i + 1, java.sql.Types.INTEGER);
+                    }
+
+                    ResultSet priceRs = priceStmt.executeQuery();
+                    int totalBill = 0;
+                    if (priceRs.next()) {
+                        totalBill = priceRs.getInt("total_price");
+                    }
+                    billLabel.setText("Total Bill: " + totalBill);
+
+                    // Insert order data
+                    insertOrderStmt.setInt(1, customerId);
+                    insertOrderStmt.setInt(2, noOfClothes);
+                    insertOrderStmt.executeUpdate();
+                    ResultSet generatedKeys = insertOrderStmt.getGeneratedKeys();
+                    int orderId = 0;
+                    if (generatedKeys.next()) {
+                        orderId = generatedKeys.getInt(1);
+                    }
+
+                    // Insert services availed data
+                    for (int serviceId : serviceIdInts) {
+                        insertServiceStmt.setInt(1, orderId);
+                        insertServiceStmt.setInt(2, serviceId);
+                        insertServiceStmt.addBatch();
+                    }
+                    insertServiceStmt.executeBatch();
+
+                    // Generate a random 4-digit transaction ID and insert payment data
+                    int trxnId = 1000 + new Random().nextInt(9000);
+                    insertPaymentStmt.setInt(1, orderId);
+                    insertPaymentStmt.setInt(2, trxnId);
+                    insertPaymentStmt.setInt(3, totalBill);
+                    insertPaymentStmt.executeUpdate();
+
+                    JOptionPane.showMessageDialog(null, "Order placed successfully! Transaction ID: " + trxnId);
+                } catch (SQLException ex) {
+                    ex.printStackTrace();
+                    JOptionPane.showMessageDialog(null, "Error placing order: " + ex.getMessage());
+                }
+            }
+        });
+
+        frame.setVisible(true);
+    }
+    	
+ 
+
+    
+    	 private static void openEmployeeDashboard(int employeeId) {
+    		 JFrame frame = new JFrame("Employee Dashboard");
+ 		    frame.setSize(400, 300);
+ 		    frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+ 		    
+ 		    JPanel panel = new JPanel();
+ 		    frame.add(panel);
+ 		    panel.setLayout(null);
+
+ 		    JLabel orderIdLabel = new JLabel("Enter Order ID:");
+ 		    orderIdLabel.setBounds(10, 20, 120, 25);
+ 		    panel.add(orderIdLabel);
+
+ 		    JTextField orderIdText = new JTextField(20);
+ 		    orderIdText.setBounds(140, 20, 165, 25);
+ 		    panel.add(orderIdText);
+
+ 		    JButton updateStatusButton = new JButton("Update Status");
+ 		    updateStatusButton.setBounds(140, 60, 165, 25);
+ 		    panel.add(updateStatusButton);
+
+ 		    updateStatusButton.addActionListener(new ActionListener() {
+ 		        @Override
+ 		        public void actionPerformed(ActionEvent e) {
+ 		            int orderId;
+ 		            try {
+ 		                orderId = Integer.parseInt(orderIdText.getText().trim());
+ 		                
+ 		                // Step 1: Check if the employee is assigned to this order
+ 		                boolean isAssigned = false;
+ 		                try (PreparedStatement checkAssignmentStmt = conn.prepareStatement(
+ 		                        "SELECT * FROM WORKS_ON WHERE S_id = ? AND Order_id = ?")) {
+ 		                    checkAssignmentStmt.setInt(1, employeeId);
+ 		                    checkAssignmentStmt.setInt(2, orderId);
+ 		                    ResultSet rs = checkAssignmentStmt.executeQuery();
+ 		                    isAssigned = rs.next();
+ 		                } catch (SQLException ex) {
+ 		                    JOptionPane.showMessageDialog(frame, "Error verifying assignment: " + ex.getMessage());
+ 		                    return;
+ 		                }
+ 		                
+ 		                if (!isAssigned) {
+ 		                    JOptionPane.showMessageDialog(frame, "You are not assigned to this order.");
+ 		                    return;
+ 		                }
+ 		                
+ 		                // Step 2: Update employee's completion status for the order in WORKS_ON
+ 		                try (PreparedStatement updateWorkStatusStmt = conn.prepareStatement(
+ 		                        "UPDATE WORKS_ON SET Status = 'completed' WHERE S_id = ? AND Order_id = ?")) {
+ 		                    updateWorkStatusStmt.setInt(1, employeeId);
+ 		                    updateWorkStatusStmt.setInt(2, orderId);
+ 		                    int rowsUpdated = updateWorkStatusStmt.executeUpdate();
+ 		                    
+ 		                    if (rowsUpdated == 0) {
+ 		                        JOptionPane.showMessageDialog(frame, "Failed to update status. Please try again.");
+ 		                        return;
+ 		                    }
+ 		                } catch (SQLException ex) {
+ 		                    JOptionPane.showMessageDialog(frame, "Error updating work status: " + ex.getMessage());
+ 		                    return;
+ 		                }
+
+ 		                // Step 3: Check if all employees assigned to this order have completed it
+ 		                boolean allCompleted = false;
+ 		                try (PreparedStatement checkAllCompletedStmt = conn.prepareStatement(
+ 		                        "SELECT COUNT(*) AS incompleteCount FROM WORKS_ON WHERE Order_id = ? AND Status != 'completed'")) {
+ 		                    checkAllCompletedStmt.setInt(1, orderId);
+ 		                    ResultSet rs = checkAllCompletedStmt.executeQuery();
+ 		                    
+ 		                    if (rs.next()) {
+ 		                        int incompleteCount = rs.getInt("incompleteCount");
+ 		                        allCompleted = (incompleteCount == 0);
+ 		                    }
+ 		                } catch (SQLException ex) {
+ 		                    JOptionPane.showMessageDialog(frame, "Error checking completion status: " + ex.getMessage());
+ 		                    return;
+ 		                }
+ 		                
+ 		                // Step 4: If all employees have completed, update the order status to "completed"
+ 		                if (allCompleted) {
+ 		                    try (PreparedStatement updateOrderStatusStmt = conn.prepareStatement(
+ 		                            "UPDATE ORDERS SET Status = 'completed' WHERE Order_id = ?")) {
+ 		                        updateOrderStatusStmt.setInt(1, orderId);
+ 		                        int rowsUpdated = updateOrderStatusStmt.executeUpdate();
+ 		                        
+ 		                        if (rowsUpdated > 0) {
+ 		                            JOptionPane.showMessageDialog(frame, "Order status updated to 'completed'.");
+ 		                        } else {
+ 		                            JOptionPane.showMessageDialog(frame, "Failed to update order status.");
+ 		                        }
+ 		                    } catch (SQLException ex) {
+ 		                        JOptionPane.showMessageDialog(frame, "Error updating order status: " + ex.getMessage());
+ 		                    }
+ 		                } else {
+ 		                    JOptionPane.showMessageDialog(frame, "Status updated for you, but the order is not yet completed by all assigned employees.");
+ 		                }
+ 		                
+ 		            } catch (NumberFormatException ex) {
+ 		                JOptionPane.showMessageDialog(frame, "Please enter a valid Order ID.");
+ 		            }
+ 		        }
+ 		    });
+
+ 		    frame.setVisible(true);
+    }
+    }
