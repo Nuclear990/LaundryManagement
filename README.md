@@ -2,7 +2,9 @@
 SRS
 
 Purpose: Building laundry management system to track orders, services, payments, customer details
+
 Scope: Management of laundry orders, customer details, pricing, and payments
+
 Users: Admin (system manager), Customers, Employees
 
 
